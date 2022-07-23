@@ -16,12 +16,14 @@ import itertools
 import logging
 import os
 import secrets
+import sys
 import tqdm
 
-
-# -----=====| CONST |=====-----
+# -----=====| LOGGING |=====-----
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
+
+# -----=====| CONST |=====-----
 
 CONST = {
 	'ChunkSize': 108, # base64 symbols or x6 bits
@@ -36,12 +38,14 @@ CONST = {
 	'TopMargin': 45, # mm
 	'LeftMargin': 27, # mm
 	'Font': 'Courier-Bold',
-	'FontSize': 10 # pt
+	'FontSize': 10 # pt,
 	}
 
-def Int2Binary(Int, Bits): return f'{Int:b}'.zfill(Bits)
+TqdmAscii = '.#'
 
-def IntFromBase64(Int): return int.from_bytes(base64.b64decode(Int), 'big')
+# -----=====| FUNC |=====-----
+
+def Int2Binary(Int, Bits): return f'{Int:b}'.zfill(Bits)
 
 def CreatePawprint(Text, StartX, StartY, ChunkSize, ErrorCorrection):
 	# Create output struct
@@ -82,7 +86,7 @@ def CreateDataset(RawData, ChunkSize):
 	RootBlock = bitarray.bitarray(Result['Length']['bin'] + Result['Hash']['bin']).tobytes()
 	Codes.insert(0, base64.b64encode(RootBlock))
 	# Add block tag: Run ID + block number
-	for Index, Content in tqdm.tqdm(enumerate(Codes), total = Result['Length']['int'], desc = 'Create blocks'):
+	for Index, Content in tqdm.tqdm(enumerate(Codes), total = Result['Length']['int'], desc = 'Create blocks', ascii = TqdmAscii):
 		Index_Binary = Int2Binary(Index, 24)
 		BlockTag = bitarray.bitarray(Result['RunID']['bin'] + Index_Binary).tobytes()
 		Result['Codes'].append(base64.b64encode(BlockTag) + Content)
@@ -97,7 +101,7 @@ def CreatePages(Codes, ColNum, RowNum, Spacing, ChunkSize, ErrorCorrection):
 	for EncodePage in Chunks:
 		# Create page
 		PawprintsPage = list()
-		for Row, Col in tqdm.tqdm(itertools.product(range(RowNum), range(ColNum)), total = len(Codes), desc = 'Create pawprints'):
+		for Row, Col in tqdm.tqdm(itertools.product(range(RowNum), range(ColNum)), total = len(Codes), desc = 'Create pawprints', ascii = TqdmAscii):
 			try:
 				# Create pawprint on the page
 				# Align pawprints by ROOT BLOCK pawsize!
@@ -128,7 +132,7 @@ def DrawPages(Pawprints, ColNum, RowNum, Spacing, PixelSize, PageWidth, PageHeig
 		# Top Line
 		Paths = [f'M 0,0 H {DrawingWidth * PixelSize} V {PixelSize} H 0 Z']
 		# Add Pixels
-		for PixelX, PixelY in tqdm.tqdm(Page, total = len(Page), desc = f'Draw pixels, page {PageNumber + 1} of {len(Pawprints["Pages"])}'):
+		for PixelX, PixelY in tqdm.tqdm(Page, total = len(Page), desc = f'Draw pixels, page {PageNumber + 1} of {len(Pawprints["Pages"])}', ascii = TqdmAscii):
 			PixelAbsX = PixelX * PixelSize
 			PixelAbsY = (Spacing + PixelY + 1) * PixelSize
 			Paths.append(f'M {PixelAbsX},{PixelAbsY} H {PixelAbsX + PixelSize} V {PixelAbsY + PixelSize} H {PixelAbsX} Z')
@@ -140,64 +144,46 @@ def DrawPages(Pawprints, ColNum, RowNum, Spacing, PixelSize, PageWidth, PageHeig
 		SvgPages.append('\n'.join(SvgPage))
 	return SvgPages
 
-def ExtractBlock(Line):
-	Result = {
-		'RunID': hex(IntFromBase64(Line[:4]))[2:].zfill(6),
-		'Index': IntFromBase64(Line[4:8]),
-		'Chunk': str(Line[8:])
-		}
-	return Result
-
-def ExtractMetadata(HeaderContent):
-	Result = {
-		'Length': IntFromBase64(HeaderContent[:4]),
-		'Hash': base64.b64decode(HeaderContent[4:]).hex()
-		}
-	return Result
-
-def VerifyAndDecode(QRBlocks):
-	Result = []
-	# Remove duplicates
-	QRBlocksDedup = list(set(QRBlocks))
-	# Extract blocks
-	Extracted = [ExtractBlock(Line) for Line in QRBlocksDedup]
-	# Sort blocks
-	Extracted = sorted(Extracted, key = lambda x: x['Index'])
-	RootBlock = Extracted[0]
-	Metadata = ExtractMetadata(RootBlock['Chunk'])
-	if RootBlock['Index'] != 0: raise RuntimeError(f'No root block in input data!')
-	for Index in range(1, Metadata['Length']):
-		if Extracted[Index]['RunID'] != RootBlock['RunID']: raise RuntimeError(f'Some blocks are not of this header')
-		if Extracted[Index]['Index'] != Index: raise RuntimeError(f'Some blocks are missing (number {Index})')
-		Result.append(Extracted[Index]['Chunk'])
-	ResultString = base64.b64decode(''.join(Result))
-	if hashlib.sha256(ResultString).hexdigest() != Metadata['Hash']: raise RuntimeError(f'Data damaged (hashes are not the same)')
-	return ResultString
+# -----=====| DATA 2 PDF |=====-----
 
 def Data2PDF(InputFileName, JobName, ColNum, RowNum, PixelSize, PageWidth, PageHeight, Spacing, ChunkSize, ErrorCorrection, OutputFileName, Font, FontSize, LeftMargin, TopMargin, StringSpacing):
+	logging.info(f'Pawpyrus {__version__} Encode')
 	logging.info(f'Job Name: {JobName}')
 	logging.info(f'Input File: "{os.path.realpath(InputFileName)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
+	# Read rawdata
 	RawData = open(InputFileName, 'rb').read()
+	# Create codes dataset
 	Dataset = CreateDataset(RawData, ChunkSize)
 	logging.info(f'Run ID: {Dataset["RunID"]["hex"]}')
 	logging.info(f'SHA-256: {Dataset["Hash"]["hex"]}')
 	logging.info(f'Blocks: {Dataset["Length"]["int"]}')
+	# Create pawprints
 	Pages = CreatePages(Dataset['Codes'], ColNum, RowNum, Spacing, ChunkSize, ErrorCorrection)
+	# Draw pawprints
 	SvgPages = DrawPages(Pages, ColNum, RowNum, Spacing, PixelSize, PageWidth, PageHeight)
 
+	# Draw PDF
 	CanvasPDF = canvas.Canvas(OutputFileName)
-	for PageNumber, Page in tqdm.tqdm(enumerate(SvgPages), total = len(SvgPages), desc = 'Convert pages to PDF'):
+	for PageNumber, Page in tqdm.tqdm(enumerate(SvgPages), total = len(SvgPages), desc = 'Convert pages to PDF', ascii = TqdmAscii):
+		# Set font
 		CanvasPDF.setFont(Font, FontSize)
+		# Convert SVG page
 		ObjectPage = svg2rlg(io.StringIO(Page))
+		# Captions
 		CanvasPDF.drawString(LeftMargin * mm, (PageHeight - TopMargin + (StringSpacing * 3)) * mm, f'Name: {JobName}')
 		CanvasPDF.drawString(LeftMargin * mm, (PageHeight - TopMargin + (StringSpacing * 2)) * mm, f'{str(datetime.datetime.now().replace(microsecond=0))}, run ID: {Dataset["RunID"]["hex"]}, {Dataset["Length"]["int"]} blocks, page {PageNumber + 1} of {len(SvgPages)}')
 		CanvasPDF.drawString(LeftMargin * mm, (PageHeight - TopMargin + StringSpacing) * mm, f'SHA-256: {Dataset["Hash"]["hex"]}')
 		CanvasPDF.drawString(LeftMargin * mm, (PageHeight - (TopMargin + StringSpacing + (((RowNum * Pages['CellSize']) + Spacing + 3) * PixelSize)) ) * mm, f'Pawpyrus {__version__}. Available at: https://github.com/regnveig/pawpyrus')
+		# Draw pawprints
 		renderPDF.draw(ObjectPage, CanvasPDF, LeftMargin * mm, (- TopMargin) * mm)
+		# Newpage
 		CanvasPDF.showPage()
+	# Save pdf
 	CanvasPDF.save()
 	logging.info(f'Job finished')
+
+# -----=====| MAIN |=====-----
 
 if __name__ == '__main__':
 	Data2PDF(
