@@ -1,5 +1,7 @@
-__author__ = 'Emil Viesná [regnveig]'
+__author__ = 'Emil Viesná'
 __version__ = 'v0.11'
+__email__ = 'regnveig@yandex.ru'
+__repository__ = 'https://github.com/regnveig/pawpyrus'
 
 from more_itertools import sliced
 from pyzbar.pyzbar import decode
@@ -32,7 +34,7 @@ RUNID_BLOCK_SIZE = 4
 INDEX_BLOCK_SIZE = 4
 QR_ERROR_CORRECTION = 1
 ARUCO_DICTIONARY = cv2.aruco.DICT_5X5_50
-MIN_MARKER_PERIMETER_RATE = 0.00001
+MIN_MARKER_PERIMETER_RATE = 1e-9
 SPACING_SIZE = 7
 COLUMNS_NUM = 6
 ROWS_NUM = 8
@@ -106,7 +108,7 @@ def CreateDataset(RawData):
 # -----=====| PAWPRINTS |=====-----
 
 def TomcatPawprint(Data, Coords, PawSize = None):
-	WrappedData = Data.ljust(DATA_CHUNK_SIZE, b'=')
+	WrappedData = Data.ljust(DATA_CHUNK_SIZE + RUNID_BLOCK_SIZE + INDEX_BLOCK_SIZE, b'=')
 	QR = QRCode(error_correction = QR_ERROR_CORRECTION, border = 0)
 	QR.add_data(WrappedData)
 	QR.make(fit = False)
@@ -126,15 +128,15 @@ def KittyPawprint(ArUcoIndex, Coords):
 
 # -----=====| DRAW FUNCTIONS |=====-----
 
-def CreatePixelSheets(Codes):
+def CreatePixelSheets(Codes, ColNum, RowNum):
 	# Create output struct
 	Result = { 'PawSize': None, 'CellSize': None, 'Pages': list() }
 	# Chunk codes to rows and pages
-	PageData = list(sliced(list(sliced(Codes, COLUMNS_NUM)), ROWS_NUM))
+	PageData = list(sliced(list(sliced(Codes, ColNum)), RowNum))
 	for PageNumber, Page in enumerate(PageData):
 		# Create page
 		PixelSheet = list()
-		for Row, Col in tqdm.tqdm(itertools.product(range(ROWS_NUM), range(COLUMNS_NUM)), total = sum([len(item) for item in Page]), desc = f'Create pawprints, page {PageNumber + 1} of {len(PageData)}', ascii = TQDM_STATUSBAR_ASCII):
+		for Row, Col in tqdm.tqdm(itertools.product(range(RowNum), range(ColNum)), total = sum([len(item) for item in Page]), desc = f'Create pawprints, page {PageNumber + 1} of {len(PageData)}', ascii = TQDM_STATUSBAR_ASCII):
 			try:
 				# Create pawprint on the page
 				# Align pawprints by ROOT BLOCK pawsize!
@@ -151,7 +153,7 @@ def CreatePixelSheets(Codes):
 		# Create grid
 		Grid = {
 			0: (0, 0),
-			1: (Result['CellSize'] * COLUMNS_NUM, 0),
+			1: (Result['CellSize'] * ColNum, 0),
 			2: (0, Result['CellSize'] * len(Page)),
 			3: (Result['CellSize'], 0)
 			}
@@ -162,7 +164,7 @@ def CreatePixelSheets(Codes):
 			PixelSheet.append((DotCentering, int(Y)))
 		for X in (
 			list(range(SPACING_SIZE + 2, Result['PawSize'] + SPACING_SIZE - 2, DOT_SPACING)) +
-			list(range(Result['PawSize'] + (SPACING_SIZE * 2) + 2, (Result['CellSize'] * COLUMNS_NUM) - 2, DOT_SPACING))
+			list(range(Result['PawSize'] + (SPACING_SIZE * 2) + 2, (Result['CellSize'] * ColNum) - 2, DOT_SPACING))
 			):
 			PixelSheet.append((int(X), DotCentering))
 		# Append page
@@ -170,9 +172,9 @@ def CreatePixelSheets(Codes):
 	# Return
 	return Result
 
-def DrawSVG(PixelSheets):
+def DrawSVG(PixelSheets, ColNum):
 	SvgPages = list()
-	DrawingWidth = (COLUMNS_NUM * PixelSheets['CellSize']) - SPACING_SIZE
+	DrawingWidth = (ColNum * PixelSheets['CellSize']) - SPACING_SIZE
 	PixelSize = (PDF_PAGE_WIDTH - PDF_LEFT_MARGIN - PDF_RIGHT_MARGIN) / DrawingWidth
 	for PageNumber, Page in enumerate(PixelSheets['Pages']):
 		# Draw page
@@ -202,7 +204,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName):
 		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 1)) * mm, f'Name: {JobName}')
 		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 2)) * mm, f'{Timestamp}, run ID: {Dataset["RunID"]["hex"]}, {Dataset["Length"]["int"]} blocks, page {PageNumber + 1} of {len(SvgPages)}')
 		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 3)) * mm, f'SHA-256: {Dataset["Hash"]["hex"]}')
-		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 4)) * mm, f'Pawpyrus {__version__}. Available at: https://github.com/regnveig/pawpyrus')
+		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 4)) * mm, f'Pawpyrus {__version__}. Available at: {__repository__}')
 		# Draw pawprints
 		renderPDF.draw(ObjectPage, CanvasPDF, PDF_LEFT_MARGIN * mm, - ((PDF_PAGE_HEIGHT - PDF_TOP_MARGIN) + (PDF_LINE_SPACING * 5)) * mm)
 		# Newpage
@@ -213,7 +215,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName):
 
 # -----=====| ENCODE MAIN |=====-----
 
-def EncodeMain(JobName, InputFileName, OutputFileName):
+def EncodeMain(JobName, InputFileName, OutputFileName, ColNum, RowNum):
 	logging.info(f'Pawpyrus {__version__} Encoder')
 	logging.info(f'Job Name: {JobName}')
 	logging.info(f'Input File: "{os.path.realpath(InputFileName)}"')
@@ -226,9 +228,9 @@ def EncodeMain(JobName, InputFileName, OutputFileName):
 	logging.info(f'SHA-256: {Dataset["Hash"]["hex"]}')
 	logging.info(f'Blocks: {Dataset["Length"]["int"]}')
 	# Create pixelsheets
-	Pages = CreatePixelSheets(Dataset['Codes'])
+	Pages = CreatePixelSheets(Dataset['Codes'], ColNum, RowNum)
 	# Draw SVG
-	SvgPages = DrawSVG(Pages)
+	SvgPages = DrawSVG(Pages, ColNum)
 	# Draw PDF
 	CreatePDF(Dataset, SvgPages, OutputFileName, JobName)
 	logging.info(f'Job finished')
@@ -253,10 +255,11 @@ def ExtractMetadata(Content):
 
 # -----=====| DETECT & DECODE |=====-----
 
-def ReadPage(FileName):
+def ReadPage(FileName, DebugDir):
 	# Read and binarize image
 	Picture = cv2.imread(FileName, cv2.IMREAD_GRAYSCALE)
 	Threshold, Picture = cv2.threshold(Picture, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+	if DebugDir is not None: DebugArray = cv2.cvtColor(numpy.copy(Picture), cv2.COLOR_GRAY2RGB)
 	logging.info(f'Image binarized (threshold: {Threshold})')
 	# Detect markers
 	ArUcoDict = cv2.aruco.Dictionary_get(ARUCO_DICTIONARY)
@@ -265,6 +268,11 @@ def ReadPage(FileName):
 	Markers = cv2.aruco.detectMarkers(Picture, ArUcoDict, parameters = ArUcoParams)
 	# Check markers
 	if Markers is None: raise RuntimeError('No markers were found')
+	if DebugDir is not None:
+		for item in range(len(Markers[1])):
+			for LineStart, LineEnd in ((0, 1), (1, 2), (2, 3), (3, 0)):
+				cv2.line(DebugArray, tuple(int(i) for i in Markers[0][item][0][LineStart]), tuple(int(i) for i in Markers[0][item][0][LineEnd]), (255, 0, 0), 4)
+			cv2.putText(DebugArray, f'id={Markers[1][item][0]}', (int(Markers[0][item][0][0][0]), int(Markers[0][item][0][0][1]) - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 4)
 	Markers = { int(Markers[1][item][0]): {'Coords': Markers[0][item][0]} for item in range(len(Markers[1])) }
 	if tuple(sorted(Markers.keys())) != (0, 1, 2, 3): raise RuntimeError(f'Wrong markers or lack of markers')
 	# Align grid
@@ -301,12 +309,20 @@ def ReadPage(FileName):
 				for x, y in ((X, Y), (X + 1, Y), (X + 1, Y + 1), (X, Y + 1))
 			]
 		Fragment = Picture[round(min([y for x, y in Chunk])):round(max([y for x, y in Chunk])), round(min([x for x, y in Chunk])):round(max([x for x, y in Chunk]))]
-		Chunks.append(Fragment)
+		Chunks.append({'Cell': (int(X), int(Y)), 'Coords': Chunk, 'Image': Fragment})
 	# Detect and decode
 	Codes = list()
 	for Chunk in tqdm.tqdm(Chunks, total = len(Chunks), desc = f'Detect QR codes', ascii = TQDM_STATUSBAR_ASCII):
-		Code = decode(Chunk)
-		if Code: Codes.append(Code[0].data.decode('ascii'))
+		Code = decode(Chunk['Image'])
+		if Code:
+			Color = (0, 255, 0)
+			Codes.append(Code[0].data.decode('ascii'))
+		else: Color = (0, 0, 255)
+		if DebugDir is not None:
+			for LineStart, LineEnd in ((0, 1), (1, 2), (2, 3), (3, 0)):
+				cv2.line(DebugArray, tuple(int(i) for i in Chunk['Coords'][LineStart]), tuple(int(i) for i in Chunk['Coords'][LineEnd]), (255, 0, 0), 4)
+			cv2.putText(DebugArray, f'({Chunk["Cell"][0]},{Chunk["Cell"][1]})', (int(Chunk['Coords'][3][0]) + 10, int(Chunk['Coords'][3][1]) - 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5, Color, 4)
+	if DebugDir is not None: cv2.imwrite(os.path.join(DebugDir, f'debug.{os.path.basename(FileName)}'), DebugArray)
 	return Codes
 
 def VerifyAndDecode(QRBlocks):
@@ -344,20 +360,73 @@ def VerifyAndDecode(QRBlocks):
 
 # -----=====| DECODE MAIN |=====-----
 
-def DecodeMain(InputFileNames, OutputFileName):
+def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
+	if (not ImageInput) and (TextInput is None): raise ValueError(f'Input is empty: no images, no text!')
 	logging.info(f'Pawpyrus {__version__} Decoder')
-	logging.info(f'Input File(s): "{", ".join([os.path.realpath(item) for item in InputFileNames])}"')
+	if DebugDir is not None:
+		logging.info(f'DEBUG MODE ON')
+		os.mkdir(DebugDir)
+	if ImageInput: logging.info(f'Image Input File(s): "{", ".join([os.path.realpath(item) for item in ImageInput])}"')
+	if TextInput is not None: logging.info(f'Text Input File: "{os.path.realpath(TextInput)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
 	Blocks = list()
-	for FileName in InputFileNames:
+	for FileName in ImageInput:
 		logging.info(f'Proccesing "{FileName}"')
-		Blocks += ReadPage(FileName)
+		Blocks += ReadPage(FileName, DebugDir)
+	if TextInput is not None:
+		with open(TextInput, 'rt') as TF: Blocks += [ Line[:-1] for Line in TF.readlines() if Line[:-1] != '\n' ]
+	if DebugDir is not None:
+		with open(os.path.join(DebugDir, 'blocks.txt'), 'wt') as BF: BF.write('\n'.join(Blocks))
 	Result = VerifyAndDecode(Blocks)
 	with open(OutputFileName, 'wb') as Out: Out.write(Result)
 	logging.info(f'Job finished')
 
+## ------======| PARSER |======------
+
+def CreateParser():
+	Default_parser = argparse.ArgumentParser(
+			formatter_class = argparse.RawDescriptionHelpFormatter,
+			description = f'Pawpyrus {__version__}: Minimalist paper storage based on QR codes',
+			epilog = f'Author: {__author__} <{__email__}>\nAvailable at: {__repository__}'
+			)
+	Default_parser.add_argument ('-v', '--version', action = 'version', version = __version__)
+	Subparsers = Default_parser.add_subparsers(title = 'Commands', dest = 'command')
+	# Encode parser
+	EncodeParser = Subparsers.add_parser('Encode', help=f'Encode data as paper storage PDF file')
+	EncodeParser.add_argument('-n', '--name', required = True, type = str, dest = 'JobName', help = f'Job name. Will be printed in page header. Required.')
+	EncodeParser.add_argument('-i', '--input', required = True, type = str, dest = 'InputFile', help = f'File to encode. Required.')
+	EncodeParser.add_argument('-o', '--output', required = True, type = str, dest = 'OutputFile', help = f'PDF file to save. Required.')
+	EncodeParser.add_argument('-c', '--cols', type = int, default = COLUMNS_NUM, dest = 'ColNum', help = f'Columns number. Default = {COLUMNS_NUM}')
+	EncodeParser.add_argument('-r', '--rows', type = int, default = ROWS_NUM, dest = 'RowNum', help = f'Rows number. Default = {ROWS_NUM}')
+	# Decode parser
+	DecodeParser = Subparsers.add_parser('Decode', help=f'Decode data from paper storage scans')
+	DecodeParser.add_argument('-i', '--image', nargs = '*', type = str, dest = 'ImageInput', help = f'Paper storage scans to decode.')
+	DecodeParser.add_argument('-t', '--text', type = str, default = None, dest = 'TextInput', help = f'Files with lists of QR codes content, gathered manually.')
+	DecodeParser.add_argument('-o', '--output', required = True, type = str, dest = 'OutputFile', help = f'File to save decoded data. Required.')
+	DecodeParser.add_argument('-d', '--debug-dir', type = str, default = None, dest = 'DebugDir', help = f'Directory where to collect debug data if necessary.')
+
+	return Default_parser
+
 # -----=====| MAIN |=====-----
 
 if __name__ == '__main__':
-	EncodeMain(InputFileName = '/mydocs/MyDocs/Cloud/Core/pawpyrus/tests/test_pubkey.gpg', JobName = 'Regnveig\'s Public Key on Paper', OutputFileName = 'tests/.test_pubkey.pdf' )
+	Parser = CreateParser()
+	Namespace = Parser.parse_args(sys.argv[1:])
+	if Namespace.command == 'Encode':
+		EncodeMain(
+			InputFileName = Namespace.InputFile,
+			JobName = Namespace.JobName,
+			OutputFileName = Namespace.OutputFile,
+			ColNum = Namespace.ColNum,
+			RowNum = Namespace.RowNum
+			)
+	elif Namespace.command == 'Decode':
+		DecodeMain(
+			ImageInput = Namespace.ImageInput,
+			TextInput = Namespace.TextInput,
+			DebugDir = Namespace.DebugDir,
+			OutputFileName = Namespace.OutputFile
+			)
+	else: Parser.print_help()
+	#
 	#DecodeMain(['/mydocs/MyDocs/Cloud/Core/pawpyrus/tests/test_pawpyrus_scan_600dpi.JPG'], '/mydocs/MyDocs/Cloud/Core/pawpyrus/tests/.test_pawpyrus_decoded_data.asc')
