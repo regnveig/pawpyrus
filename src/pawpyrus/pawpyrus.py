@@ -1,5 +1,5 @@
 __author__ = 'Emil Viesná'
-__version__ = 'v0.11'
+__version__ = '2022.08.01'
 __email__ = 'regnveig@yandex.ru'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
