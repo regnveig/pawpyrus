@@ -12,6 +12,7 @@ from reportlab.pdfgen import canvas
 from svglib.svglib import svg2rlg
 import argparse
 import base64
+import binascii
 import bitarray
 import cv2
 import datetime
@@ -57,19 +58,43 @@ logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 
 # -----=====| CONVERSION |=====-----
 
-def Base64ToInt(String): return int.from_bytes(base64.b64decode(String), 'big')
+def CheckInt(Number):
+	if type(Number) != int: raise TypeError(f'Must be integer: {Number}')
 
-def IntToBinary(Int, Bits): return f'{Int:b}'.zfill(Bits)
+def CheckPositivity(Number):
+	if Number < 0: raise ValueError(f'Must be positive: {Number}')
 
-def Base64ToHex(String): return hex(Base64ToInt(String))[2:].zfill(math.ceil(len(String) * 6 / 4))
+def CheckNonNegativity(Number):
+	if Number <= 0: raise ValueError(f'Must be non-negative: {Number}')
+
+def CheckBase64(String):
+	try:
+		base64.b64decode(String)
+	except binascii.Error as Error:
+		raise ValueError(f'Invalid Base64 string: "{String}" ({Error})')
+	except TypeError as Error:
+		raise TypeError(f'Invalid Base64 input type: {type(String)} ({Error})')
+
+def Base64ToInt(String):
+	CheckBase64(String)
+	return int.from_bytes(base64.b64decode(String), 'big')
+
+def IntToBinary(Int, Bits):
+	CheckInt(Int), CheckInt(Bits), CheckNonNegativity(Int), CheckPositivity(Bits)
+	BitString = f'{Int:b}'
+	if len(BitString) > Bits: raise ValueError(f'Integer requires more bits than expected')
+	return BitString.zfill(Bits)
+
+def Base64ToHex(String):
+	return hex(Base64ToInt(String))[2:].zfill(math.ceil(len(String) * 6 / 4))
 
 
 # -----=====| GEOMETRY |=====-----
 
 def FindCenter(CoordBlock):
 	return (
-		CoordBlock[0][0] + (abs(CoordBlock[0][0] - CoordBlock[2][0]) / 2),
-		CoordBlock[0][1] + (abs(CoordBlock[0][1] - CoordBlock[2][1]) / 2)
+		CoordBlock[0][0] + ((CoordBlock[2][0] - CoordBlock[0][0]) / 2),
+		CoordBlock[0][1] + ((CoordBlock[2][1] - CoordBlock[0][1]) / 2)
 		)
 
 
@@ -107,9 +132,9 @@ def CreateDataset(RawData):
 
 # -----=====| PAWPRINTS |=====-----
 
-def TomcatPawprint(Data, Coords, PawSize = None):
-	WrappedData = Data.ljust(DATA_CHUNK_SIZE + RUNID_BLOCK_SIZE + INDEX_BLOCK_SIZE, b'=')
-	QR = QRCode(error_correction = QR_ERROR_CORRECTION, border = 0)
+def TomcatPawprint(Data, Coords, PawSize = None, ChunkSize = DATA_CHUNK_SIZE, RunIDBlockSize = RUNID_BLOCK_SIZE, IndexBlockSize = INDEX_BLOCK_SIZE, ErrorCorrection = QR_ERROR_CORRECTION):
+	WrappedData = Data.ljust(ChunkSize + RunIDBlockSize + IndexBlockSize, b'=')
+	QR = QRCode(error_correction = ErrorCorrection, border = 0)
 	QR.add_data(WrappedData)
 	QR.make(fit = False)
 	Matrix = QR.get_matrix()
@@ -119,9 +144,9 @@ def TomcatPawprint(Data, Coords, PawSize = None):
 	Result['Pixels'] = [ (Coords[0] + X, Coords[1] + Y) for Y, X in PixelCoordinates if Matrix[Y][X] ]
 	return Result
 
-def KittyPawprint(ArUcoIndex, Coords):
-	Matrix = cv2.aruco.Dictionary_get(ARUCO_DICTIONARY).drawMarker(ArUcoIndex, SPACING_SIZE)
-	PixelCoordinates = itertools.product(range(SPACING_SIZE), repeat = 2)
+def KittyPawprint(ArUcoIndex, Coords, Dictionary = ARUCO_DICTIONARY, SpacingSize = SPACING_SIZE):
+	Matrix = cv2.aruco.Dictionary_get(Dictionary).drawMarker(ArUcoIndex, SpacingSize)
+	PixelCoordinates = itertools.product(range(SpacingSize), repeat = 2)
 	Result = [ (Coords[0] + X, Coords[1] + Y) for Y, X in PixelCoordinates if Matrix[Y][X] == 0 ]
 	return Result
 
@@ -239,6 +264,7 @@ def EncodeMain(JobName, InputFileName, OutputFileName, ColNum, RowNum):
 # -----=====| EXTRACTION |=====-----
 
 def ExtractData(Line):
+	CheckBase64(Line)
 	Result = {
 		'RunID': Base64ToHex(Line[: RUNID_BLOCK_SIZE]),
 		'Index': Base64ToInt(Line[RUNID_BLOCK_SIZE : RUNID_BLOCK_SIZE + INDEX_BLOCK_SIZE]),
@@ -271,13 +297,29 @@ def ReadPage(FileName, DebugDir):
 	if DebugDir is not None:
 		for item in range(len(Markers[1])):
 			for LineStart, LineEnd in ((0, 1), (1, 2), (2, 3), (3, 0)):
-				cv2.line(DebugArray, tuple(int(i) for i in Markers[0][item][0][LineStart]), tuple(int(i) for i in Markers[0][item][0][LineEnd]), (255, 0, 0), 4)
-			cv2.putText(DebugArray, f'id={Markers[1][item][0]}', (int(Markers[0][item][0][0][0]), int(Markers[0][item][0][0][1]) - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 4)
+				cv2.line(
+					DebugArray,
+					tuple(int(i) for i in Markers[0][item][0][LineStart]),
+					tuple(int(i) for i in Markers[0][item][0][LineEnd]),
+					(255, 0, 0),
+					4
+				)
+			cv2.putText(
+				DebugArray,
+				f'id={Markers[1][item][0]}',
+				(int(Markers[0][item][0][0][0]), int(Markers[0][item][0][0][1]) - 20),
+				cv2.FONT_HERSHEY_SIMPLEX,
+				1.5,
+				(0, 255, 0),
+				4
+			)
 	Markers = { int(Markers[1][item][0]): {'Coords': Markers[0][item][0]} for item in range(len(Markers[1])) }
 	if tuple(sorted(Markers.keys())) != (0, 1, 2, 3): raise RuntimeError(f'Wrong markers or lack of markers')
 	# Align grid
 	MarkerLength = math.dist(Markers[0]['Coords'][0], Markers[0]['Coords'][1])
-	for item in Markers: Markers[item]['Center'] = FindCenter(Markers[item]['Coords'])
+	for item in Markers:
+		print(type(Markers[item]['Coords']), type(Markers[item]['Coords'][0]), type(Markers[item]['Coords'][0][0]))
+		Markers[item]['Center'] = FindCenter(Markers[item]['Coords'])
 	Width = math.dist(Markers[0]['Center'], Markers[1]['Center'])
 	Height = math.dist(Markers[0]['Center'], Markers[2]['Center'])
 	CellSize = math.dist(Markers[0]['Center'], Markers[3]['Center'])
@@ -308,8 +350,13 @@ def ReadPage(FileName, DebugDir):
 				]
 				for x, y in ((X, Y), (X + 1, Y), (X + 1, Y + 1), (X, Y + 1))
 			]
-		Fragment = Picture[round(min([y for x, y in Chunk])):round(max([y for x, y in Chunk])), round(min([x for x, y in Chunk])):round(max([x for x, y in Chunk]))]
-		Chunks.append({'Cell': (int(X), int(Y)), 'Coords': Chunk, 'Image': Fragment})
+		Xs, Ys = [x for x, y in Chunk], [y for x, y in Chunk]
+		Fragment = Picture[round(min(Ys)):round(max(Ys)), round(min(Xs)):round(max(Xs))]
+		Chunks.append({
+			'Cell': (int(X), int(Y)),
+			'Coords': Chunk,
+			'Image': Fragment
+			})
 	# Detect and decode
 	Codes = list()
 	for Chunk in tqdm.tqdm(Chunks, total = len(Chunks), desc = f'Detect QR codes', ascii = TQDM_STATUSBAR_ASCII):
@@ -320,8 +367,22 @@ def ReadPage(FileName, DebugDir):
 		else: Color = (0, 0, 255)
 		if DebugDir is not None:
 			for LineStart, LineEnd in ((0, 1), (1, 2), (2, 3), (3, 0)):
-				cv2.line(DebugArray, tuple(int(i) for i in Chunk['Coords'][LineStart]), tuple(int(i) for i in Chunk['Coords'][LineEnd]), (255, 0, 0), 4)
-			cv2.putText(DebugArray, f'({Chunk["Cell"][0]},{Chunk["Cell"][1]})', (int(Chunk['Coords'][3][0]) + 10, int(Chunk['Coords'][3][1]) - 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5, Color, 4)
+				cv2.line(
+					DebugArray,
+					tuple(int(i) for i in Chunk['Coords'][LineStart]),
+					tuple(int(i) for i in Chunk['Coords'][LineEnd]),
+					(255, 0, 0),
+					4
+				)
+			cv2.putText(
+				DebugArray,
+				f'({Chunk["Cell"][0]},{Chunk["Cell"][1]})',
+				(int(Chunk['Coords'][3][0]) + 10, int(Chunk['Coords'][3][1]) - 30),
+				cv2.FONT_HERSHEY_SIMPLEX,
+				1.5,
+				Color,
+				4
+			)
 	if DebugDir is not None: cv2.imwrite(os.path.join(DebugDir, f'debug.{os.path.basename(FileName)}'), DebugArray)
 	return Codes
 
@@ -339,16 +400,15 @@ def VerifyAndDecode(QRBlocks):
 	Metadata = ExtractMetadata(Header['Content'])
 	logging.info(f'Blocks: {Metadata["Length"]}')
 	logging.info(f'SHA-256: {Metadata["Hash"]}')
-	if len(Extracted) != Metadata['Length']: raise RuntimeError(f'Blocks number is not the same')
 	# Check blocks
 	MissingBlocks = list()
 	for Index in range(1, Metadata['Length']):
 		try:
 			Extracted[Index]
+			if Extracted[Index]['RunID'] != Header['RunID']: raise RuntimeError(f'Some blocks are not of this header')
+			Result.append(Extracted[Index]['Content'])
 		except KeyError:
 			MissingBlocks.append(str(Index))
-		if Extracted[Index]['RunID'] != Header['RunID']: raise RuntimeError(f'Some blocks are not of this header')
-		Result.append(Extracted[Index]['Content'])
 	if MissingBlocks: raise RuntimeError(f'Some blocks are missing: {"; ".join(MissingBlocks)}')
 	# Decode base64
 	ResultString = base64.b64decode(''.join(Result))
@@ -428,5 +488,3 @@ if __name__ == '__main__':
 			OutputFileName = Namespace.OutputFile
 			)
 	else: Parser.print_help()
-	#
-	#DecodeMain(['/mydocs/MyDocs/Cloud/Core/pawpyrus/tests/test_pawpyrus_scan_600dpi.JPG'], '/mydocs/MyDocs/Cloud/Core/pawpyrus/tests/.test_pawpyrus_decoded_data.asc')

@@ -1,0 +1,38 @@
+[build-system]
+requires = [ "hatchling" ]
+build-backend = "hatchling.build"
+
+[project]
+name = "pawpyrus"
+version = "0.11"
+authors = [ { name = "Emil Viesná", email="regnveig@yandex.ru" } ]
+description = "Minimalist paper data storage based on QR codes"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">= 3.8"
+dependencies = [
+	"bitarray",
+	"more-itertools",
+	"numpy",
+	"opencv-contrib-python",
+	"opencv-python",
+	"qrcode",
+	"reportlab",
+	"svglib",
+	"tqdm"
+]
+classifiers = [
+	"Programming Language :: Python :: 3.10",
+	"License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+	"Operating System :: OS Independent",
+	"Natural Language :: English",
+	"Development Status :: 1 - Planning",
+	"Environment :: Console"
+]
+
+[project.scripts]
+pawpyrus = "pawpyrus:main"
+
+[project.urls]
+"Homepage" = "https://github.com/regnveig/pawpyrus"
+"Bug Tracker" = "https://github.com/regnveig/pawpyrus/issues"
