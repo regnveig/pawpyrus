@@ -31,7 +31,7 @@ classifiers = [
 ]
 
 [project.scripts]
-pawpyrus = "pawpyrus:main"
+pawpyrus = "pawpyrus.pawpyrus:main"
 
 [project.urls]
 "Homepage" = "https://github.com/regnveig/pawpyrus"

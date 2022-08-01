@@ -469,7 +469,7 @@ def CreateParser():
 
 # -----=====| MAIN |=====-----
 
-if __name__ == '__main__':
+def main():
 	Parser = CreateParser()
 	Namespace = Parser.parse_args(sys.argv[1:])
 	if Namespace.command == 'Encode':
@@ -488,3 +488,5 @@ if __name__ == '__main__':
 			OutputFileName = Namespace.OutputFile
 			)
 	else: Parser.print_help()
+
+if __name__ == '__main__': main()
