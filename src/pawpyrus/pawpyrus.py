@@ -1,5 +1,5 @@
 __author__ = 'Emil Viesná'
-__version__ = '2022.08.01'
+__version__ = '2022.8.7'
 __email__ = 'regnveig@yandex.ru'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
@@ -58,32 +58,9 @@ logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 
 # -----=====| CONVERSION |=====-----
 
-def CheckInt(Number):
-	if type(Number) != int: raise TypeError(f'Must be integer: {Number}')
+def Base64ToInt(String): return int.from_bytes(base64.b64decode(String), 'big')
 
-def CheckPositivity(Number):
-	if Number < 0: raise ValueError(f'Must be positive: {Number}')
-
-def CheckNonNegativity(Number):
-	if Number <= 0: raise ValueError(f'Must be non-negative: {Number}')
-
-def CheckBase64(String):
-	try:
-		base64.b64decode(String)
-	except binascii.Error as Error:
-		raise ValueError(f'Invalid Base64 string: "{String}" ({Error})')
-	except TypeError as Error:
-		raise TypeError(f'Invalid Base64 input type: {type(String)} ({Error})')
-
-def Base64ToInt(String):
-	CheckBase64(String)
-	return int.from_bytes(base64.b64decode(String), 'big')
-
-def IntToBinary(Int, Bits):
-	CheckInt(Int), CheckInt(Bits), CheckNonNegativity(Int), CheckPositivity(Bits)
-	BitString = f'{Int:b}'
-	if len(BitString) > Bits: raise ValueError(f'Integer requires more bits than expected')
-	return BitString.zfill(Bits)
+def IntToBinary(Int, Bits): return f'{Int:b}'.zfill(Bits)
 
 def Base64ToHex(String):
 	return hex(Base64ToInt(String))[2:].zfill(math.ceil(len(String) * 6 / 4))
@@ -153,7 +130,7 @@ def KittyPawprint(ArUcoIndex, Coords, Dictionary = ARUCO_DICTIONARY, SpacingSize
 
 # -----=====| DRAW FUNCTIONS |=====-----
 
-def CreatePixelSheets(Codes, ColNum, RowNum):
+def CreatePixelSheets(Codes, ColNum, RowNum, SpacingSize = SPACING_SIZE, DotSpacing = DOT_SPACING):
 	# Create output struct
 	Result = { 'PawSize': None, 'CellSize': None, 'Pages': list() }
 	# Chunk codes to rows and pages
@@ -165,12 +142,12 @@ def CreatePixelSheets(Codes, ColNum, RowNum):
 			try:
 				# Create pawprint on the page
 				# Align pawprints by ROOT BLOCK pawsize!
-				StartX = (SPACING_SIZE * 2) + (0 if Result['CellSize'] is None else Col * Result['CellSize'])
-				StartY = (SPACING_SIZE * 2) + (0 if Result['CellSize'] is None else Row * Result['CellSize'])
+				StartX = (SpacingSize * 2) + (0 if Result['CellSize'] is None else Col * Result['CellSize'])
+				StartY = (SpacingSize * 2) + (0 if Result['CellSize'] is None else Row * Result['CellSize'])
 				Pawprint = TomcatPawprint(Page[Row][Col], (StartX, StartY), PawSize = Result['PawSize'])
 				if Result['PawSize'] is None:
 					Result['PawSize'] = int(Pawprint['PawSize'])
-					Result['CellSize'] = int(Pawprint['PawSize'] + SPACING_SIZE)
+					Result['CellSize'] = int(Pawprint['PawSize'] + SpacingSize)
 				PixelSheet += Pawprint['Pixels']
 			except IndexError:
 				# If there are no codes left
@@ -184,12 +161,12 @@ def CreatePixelSheets(Codes, ColNum, RowNum):
 			}
 		for Index, Item in Grid.items(): PixelSheet += KittyPawprint(Index, Item)
 		# Create dot margin (beauty, no functionality)
-		DotCentering = math.floor(SPACING_SIZE / 2)
-		for Y in list(range(SPACING_SIZE + 2, (Result['CellSize'] * len(Page)) - 2, DOT_SPACING)):
+		DotCentering = math.floor(SpacingSize / 2)
+		for Y in list(range(SpacingSize + 2, (Result['CellSize'] * len(Page)) - 2, DotSpacing)):
 			PixelSheet.append((DotCentering, int(Y)))
 		for X in (
-			list(range(SPACING_SIZE + 2, Result['PawSize'] + SPACING_SIZE - 2, DOT_SPACING)) +
-			list(range(Result['PawSize'] + (SPACING_SIZE * 2) + 2, (Result['CellSize'] * ColNum) - 2, DOT_SPACING))
+			list(range(SpacingSize + 2, Result['PawSize'] + SpacingSize - 2, DotSpacing)) +
+			list(range(Result['PawSize'] + (SpacingSize * 2) + 2, (Result['CellSize'] * ColNum) - 2, DotSpacing))
 			):
 			PixelSheet.append((int(X), DotCentering))
 		# Append page
@@ -197,14 +174,14 @@ def CreatePixelSheets(Codes, ColNum, RowNum):
 	# Return
 	return Result
 
-def DrawSVG(PixelSheets, ColNum):
+def DrawSVG(PixelSheets, ColNum, SpacingSize = SPACING_SIZE, PdfPageWidth = PDF_PAGE_WIDTH, PdfPageHeight = PDF_PAGE_HEIGHT, PdfLeftMargin = PDF_LEFT_MARGIN, PdfRightMargin = PDF_RIGHT_MARGIN):
 	SvgPages = list()
-	DrawingWidth = (ColNum * PixelSheets['CellSize']) - SPACING_SIZE
-	PixelSize = (PDF_PAGE_WIDTH - PDF_LEFT_MARGIN - PDF_RIGHT_MARGIN) / DrawingWidth
+	DrawingWidth = (ColNum * PixelSheets['CellSize']) - SpacingSize
+	PixelSize = (PdfPageWidth - PdfLeftMargin - PdfRightMargin) / DrawingWidth
 	for PageNumber, Page in enumerate(PixelSheets['Pages']):
 		# Draw page
 		SvgPage = [
-			f'<svg width="{PDF_PAGE_WIDTH}mm" height="{PDF_PAGE_HEIGHT}mm" viewBox="0 0 {PDF_PAGE_WIDTH} {PDF_PAGE_HEIGHT}" version="1.1" xmlns="http://www.w3.org/2000/svg">',
+			f'<svg width="{PdfPageWidth}mm" height="{PdfPageHeight}mm" viewBox="0 0 {PdfPageWidth} {PdfPageHeight}" version="1.1" xmlns="http://www.w3.org/2000/svg">',
 			f'<path style="fill:#000000;stroke:none;fill-rule:evenodd" d="'
 			]
 		Paths = list()
@@ -217,21 +194,21 @@ def DrawSVG(PixelSheets, ColNum):
 		SvgPages.append('\n'.join(SvgPage))
 	return SvgPages
 
-def CreatePDF(Dataset, SvgPages, OutputFileName, JobName):
+def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LEFT_MARGIN, PdfTopMargin = PDF_TOP_MARGIN, PdfLineSpacing = PDF_LINE_SPACING, PdfFontFamily = PDF_FONT_FAMILY, PdfFontSize = PDF_FONT_SIZE, PdfPageHeight = PDF_PAGE_HEIGHT):
 	CanvasPDF = canvas.Canvas(OutputFileName)
 	Timestamp = str(datetime.datetime.now().replace(microsecond = 0))
 	for PageNumber, Page in tqdm.tqdm(enumerate(SvgPages), total = len(SvgPages), desc = f'Convert pages to PDF', ascii = TQDM_STATUSBAR_ASCII):
 		# Set font
-		CanvasPDF.setFont(PDF_FONT_FAMILY, PDF_FONT_SIZE)
+		CanvasPDF.setFont(PdfFontFamily, PdfFontSize, )
 		# Convert SVG page
 		ObjectPage = svg2rlg(io.StringIO(Page))
 		# Captions
-		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 1)) * mm, f'Name: {JobName}')
-		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 2)) * mm, f'{Timestamp}, run ID: {Dataset["RunID"]["hex"]}, {Dataset["Length"]["int"]} blocks, page {PageNumber + 1} of {len(SvgPages)}')
-		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 3)) * mm, f'SHA-256: {Dataset["Hash"]["hex"]}')
-		CanvasPDF.drawString(PDF_LEFT_MARGIN * mm, (PDF_TOP_MARGIN - (PDF_LINE_SPACING * 4)) * mm, f'Pawpyrus {__version__}. Available at: {__repository__}')
+		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 1)) * mm, f'Name: {JobName}')
+		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 2)) * mm, f'{Timestamp}, run ID: {Dataset["RunID"]["hex"]}, {Dataset["Length"]["int"]} blocks, page {PageNumber + 1} of {len(SvgPages)}')
+		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 3)) * mm, f'SHA-256: {Dataset["Hash"]["hex"]}')
+		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 4)) * mm, f'Pawpyrus {__version__}. Available at: {__repository__}')
 		# Draw pawprints
-		renderPDF.draw(ObjectPage, CanvasPDF, PDF_LEFT_MARGIN * mm, - ((PDF_PAGE_HEIGHT - PDF_TOP_MARGIN) + (PDF_LINE_SPACING * 5)) * mm)
+		renderPDF.draw(ObjectPage, CanvasPDF, PdfLeftMargin * mm, - ((PdfPageHeight - PdfTopMargin) + (PdfLineSpacing * 5)) * mm)
 		# Newpage
 		CanvasPDF.showPage()
 	# Save pdf
@@ -263,34 +240,33 @@ def EncodeMain(JobName, InputFileName, OutputFileName, ColNum, RowNum):
 
 # -----=====| EXTRACTION |=====-----
 
-def ExtractData(Line):
-	CheckBase64(Line)
+def ExtractData(Line, RunIDBlockSize = RUNID_BLOCK_SIZE, IndexBlockSize = INDEX_BLOCK_SIZE):
 	Result = {
-		'RunID': Base64ToHex(Line[: RUNID_BLOCK_SIZE]),
-		'Index': Base64ToInt(Line[RUNID_BLOCK_SIZE : RUNID_BLOCK_SIZE + INDEX_BLOCK_SIZE]),
-		'Content': Line[RUNID_BLOCK_SIZE + INDEX_BLOCK_SIZE :]
+		'RunID': Base64ToHex(Line[: RunIDBlockSize]),
+		'Index': Base64ToInt(Line[RunIDBlockSize : RunIDBlockSize + IndexBlockSize]),
+		'Content': Line[RunIDBlockSize + IndexBlockSize :]
 		}
 	return Result
 
-def ExtractMetadata(Content):
+def ExtractMetadata(Content, IndexBlockSize = INDEX_BLOCK_SIZE):
 	Result = {
-		'Length': Base64ToInt(Content[: INDEX_BLOCK_SIZE]),
-		'Hash': hex(Base64ToInt(Content[INDEX_BLOCK_SIZE :]))[2:]
+		'Length': Base64ToInt(Content[: IndexBlockSize]),
+		'Hash': hex(Base64ToInt(Content[IndexBlockSize :]))[2:]
 		}
 	return Result
 
 # -----=====| DETECT & DECODE |=====-----
 
-def ReadPage(FileName, DebugDir):
+def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPerimeterRate = MIN_MARKER_PERIMETER_RATE):
 	# Read and binarize image
 	Picture = cv2.imread(FileName, cv2.IMREAD_GRAYSCALE)
 	Threshold, Picture = cv2.threshold(Picture, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 	if DebugDir is not None: DebugArray = cv2.cvtColor(numpy.copy(Picture), cv2.COLOR_GRAY2RGB)
 	logging.info(f'Image binarized (threshold: {Threshold})')
 	# Detect markers
-	ArUcoDict = cv2.aruco.Dictionary_get(ARUCO_DICTIONARY)
+	ArUcoDict = cv2.aruco.Dictionary_get(ArUcoDictionary)
 	ArUcoParams = cv2.aruco.DetectorParameters_create()
-	ArUcoParams.minMarkerPerimeterRate = MIN_MARKER_PERIMETER_RATE
+	ArUcoParams.minMarkerPerimeterRate = MinMarkerPerimeterRate
 	Markers = cv2.aruco.detectMarkers(Picture, ArUcoDict, parameters = ArUcoParams)
 	# Check markers
 	if Markers is None: raise RuntimeError('No markers were found')
@@ -318,7 +294,6 @@ def ReadPage(FileName, DebugDir):
 	# Align grid
 	MarkerLength = math.dist(Markers[0]['Coords'][0], Markers[0]['Coords'][1])
 	for item in Markers:
-		print(type(Markers[item]['Coords']), type(Markers[item]['Coords'][0]), type(Markers[item]['Coords'][0][0]))
 		Markers[item]['Center'] = FindCenter(Markers[item]['Coords'])
 	Width = math.dist(Markers[0]['Center'], Markers[1]['Center'])
 	Height = math.dist(Markers[0]['Center'], Markers[2]['Center'])
