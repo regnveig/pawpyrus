@@ -9,7 +9,7 @@
 
 pawpyrus is a minimalist opensource paper data storage based on QR codes.
 It generates a PDF from any small-sized binary file.
-Further, scans of paper data storage can be decoded.
+Further, scans of the paper data storage can be decoded.
 
 It may be useful for storing encryption keys, password databases, etc.
 
@@ -19,14 +19,6 @@ The script is pure Python and a part of PyPI, so can be installed via *pip*:
 
 ```bash
 python3 -m pip install pawpyrus
-```
-
-Or manually:
-
-```bash
-git clone https://github.com/regnveig/pawpyrus
-cd pawpyrus/dist
-python3 -m pip install pawpyrus-2022.8.7-py3-none-any.whl
 ```
 
 ## Usage

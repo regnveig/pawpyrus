@@ -1,7 +1,4 @@
-__author__ = 'Emil Viesná'
 __version__ = '2022.8.7'
-__email__ = 'regnveig@yandex.ru'
-__repository__ = 'https://github.com/regnveig/pawpyrus'
 
 from more_itertools import sliced
 from pyzbar.pyzbar import decode
@@ -26,7 +23,7 @@ import os
 import secrets
 import sys
 import tqdm
-
+import uuid
 
 # -----=====| CONST |=====-----
 
@@ -257,7 +254,7 @@ def ExtractMetadata(Content, IndexBlockSize = INDEX_BLOCK_SIZE):
 
 # -----=====| DETECT & DECODE |=====-----
 
-def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPerimeterRate = MIN_MARKER_PERIMETER_RATE):
+def ReadPage(FileName, DebugDir, FileIndex, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPerimeterRate = MIN_MARKER_PERIMETER_RATE):
 	# Read and binarize image
 	Picture = cv2.imread(FileName, cv2.IMREAD_GRAYSCALE)
 	Threshold, Picture = cv2.threshold(Picture, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -328,7 +325,7 @@ def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPe
 		Xs, Ys = [x for x, y in Chunk], [y for x, y in Chunk]
 		Fragment = Picture[round(min(Ys)):round(max(Ys)), round(min(Xs)):round(max(Xs))]
 		Chunks.append({
-			'Cell': (int(X), int(Y)),
+			'Cell': (int(X) + 1, int(Y) + 1),
 			'Coords': Chunk,
 			'Image': Fragment
 			})
@@ -341,6 +338,7 @@ def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPe
 			Codes.append(Code[0].data.decode('ascii'))
 		else: Color = (0, 0, 255)
 		if DebugDir is not None:
+			if not Code: cv2.imwrite(os.path.join(DebugDir, f'unrecognized.page-{FileIndex}.x-{Chunk["Cell"][0]}.y-{Chunk["Cell"][1]}.jpg'), Chunk['Image'])
 			for LineStart, LineEnd in ((0, 1), (1, 2), (2, 3), (3, 0)):
 				cv2.line(
 					DebugArray,
@@ -358,7 +356,7 @@ def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPe
 				Color,
 				4
 			)
-	if DebugDir is not None: cv2.imwrite(os.path.join(DebugDir, f'debug.{os.path.basename(FileName)}'), DebugArray)
+	if DebugDir is not None: cv2.imwrite(os.path.join(DebugDir, f'page-{FileIndex}.jpg'), DebugArray)
 	return Codes
 
 def VerifyAndDecode(QRBlocks):
@@ -405,9 +403,9 @@ def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 	if TextInput is not None: logging.info(f'Text Input File: "{os.path.realpath(TextInput)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
 	Blocks = list()
-	for FileName in ImageInput:
+	for FileIndex, FileName in enumerate(ImageInput):
 		logging.info(f'Proccesing "{FileName}"')
-		Blocks += ReadPage(FileName, DebugDir)
+		Blocks += ReadPage(FileName, DebugDir, FileIndex + 1)
 	if TextInput is not None:
 		with open(TextInput, 'rt') as TF: Blocks += [ Line[:-1] for Line in TF.readlines() if Line[:-1] != '\n' ]
 	if DebugDir is not None:
@@ -421,8 +419,8 @@ def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 def CreateParser():
 	Default_parser = argparse.ArgumentParser(
 			formatter_class = argparse.RawDescriptionHelpFormatter,
-			description = f'Pawpyrus {__version__}: Minimalist paper storage based on QR codes',
-			epilog = f'Author: {__author__} <{__email__}>\nAvailable at: {__repository__}'
+			description = f'pawpyrus {__version__}: Minimalist paper data storage based on QR codes',
+			epilog = f'Bug tracker: https://github.com/regnveig/pawpyrus/issues'
 			)
 	Default_parser.add_argument ('-v', '--version', action = 'version', version = __version__)
 	Subparsers = Default_parser.add_subparsers(title = 'Commands', dest = 'command')
