@@ -1,4 +1,8 @@
-# pawpyrus
+&nbsp;
+
+![Logo](https://github.com/regnveig/pawpyrus/blob/sandbox/logo.svg)
+
+## Description
 
 ![PyPI](https://img.shields.io/pypi/v/pawpyrus?style=flat-square)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pawpyrus?style=flat-square)
