@@ -1,4 +1,5 @@
 __version__ = '2022.8.7'
+__repository__ = 'https://github.com/regnveig/pawpyrus'
 
 from more_itertools import sliced
 from pyzbar.pyzbar import decode
@@ -39,8 +40,8 @@ ROWS_NUM = 8
 DOT_SPACING = 3
 PDF_PAGE_WIDTH = 210
 PDF_PAGE_HEIGHT = 297
-PDF_LEFT_MARGIN = 28
-PDF_RIGHT_MARGIN = 35
+PDF_LEFT_MARGIN = 30
+PDF_RIGHT_MARGIN = 30
 PDF_TOP_MARGIN = PDF_PAGE_HEIGHT - 25
 PDF_FONT_FAMILY = 'Courier-Bold'
 PDF_FONT_SIZE = 10
@@ -173,7 +174,7 @@ def CreatePixelSheets(Codes, ColNum, RowNum, SpacingSize = SPACING_SIZE, DotSpac
 
 def DrawSVG(PixelSheets, ColNum, SpacingSize = SPACING_SIZE, PdfPageWidth = PDF_PAGE_WIDTH, PdfPageHeight = PDF_PAGE_HEIGHT, PdfLeftMargin = PDF_LEFT_MARGIN, PdfRightMargin = PDF_RIGHT_MARGIN):
 	SvgPages = list()
-	DrawingWidth = (ColNum * PixelSheets['CellSize']) - SpacingSize
+	DrawingWidth = (ColNum * PixelSheets['CellSize']) + SpacingSize
 	PixelSize = (PdfPageWidth - PdfLeftMargin - PdfRightMargin) / DrawingWidth
 	for PageNumber, Page in enumerate(PixelSheets['Pages']):
 		# Draw page
@@ -203,7 +204,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LE
 		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 1)) * mm, f'Name: {JobName}')
 		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 2)) * mm, f'{Timestamp}, run ID: {Dataset["RunID"]["hex"]}, {Dataset["Length"]["int"]} blocks, page {PageNumber + 1} of {len(SvgPages)}')
 		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 3)) * mm, f'SHA-256: {Dataset["Hash"]["hex"]}')
-		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 4)) * mm, f'Pawpyrus {__version__}. Available at: {__repository__}')
+		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 4)) * mm, f'pawpyrus {__version__}. Available at: {__repository__}')
 		# Draw pawprints
 		renderPDF.draw(ObjectPage, CanvasPDF, PdfLeftMargin * mm, - ((PdfPageHeight - PdfTopMargin) + (PdfLineSpacing * 5)) * mm)
 		# Newpage
@@ -215,7 +216,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LE
 # -----=====| ENCODE MAIN |=====-----
 
 def EncodeMain(JobName, InputFileName, OutputFileName, ColNum, RowNum):
-	logging.info(f'Pawpyrus {__version__} Encoder')
+	logging.info(f'pawpyrus {__version__} Encoder')
 	logging.info(f'Job Name: {JobName}')
 	logging.info(f'Input File: "{os.path.realpath(InputFileName)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
@@ -395,7 +396,7 @@ def VerifyAndDecode(QRBlocks):
 
 def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 	if (not ImageInput) and (TextInput is None): raise ValueError(f'Input is empty: no images, no text!')
-	logging.info(f'Pawpyrus {__version__} Decoder')
+	logging.info(f'pawpyrus {__version__} Decoder')
 	if DebugDir is not None:
 		logging.info(f'DEBUG MODE ON')
 		os.mkdir(DebugDir)
