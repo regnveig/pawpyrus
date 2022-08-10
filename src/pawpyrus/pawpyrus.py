@@ -1,6 +1,4 @@
-__author__ = 'Emil Viesná'
-__version__ = '2022.8.7'
-__email__ = 'regnveig@yandex.ru'
+__version__ = '2022.8.7.1'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
 from more_itertools import sliced
@@ -26,7 +24,7 @@ import os
 import secrets
 import sys
 import tqdm
-
+import uuid
 
 # -----=====| CONST |=====-----
 
@@ -42,8 +40,8 @@ ROWS_NUM = 8
 DOT_SPACING = 3
 PDF_PAGE_WIDTH = 210
 PDF_PAGE_HEIGHT = 297
-PDF_LEFT_MARGIN = 28
-PDF_RIGHT_MARGIN = 35
+PDF_LEFT_MARGIN = 30
+PDF_RIGHT_MARGIN = 30
 PDF_TOP_MARGIN = PDF_PAGE_HEIGHT - 25
 PDF_FONT_FAMILY = 'Courier-Bold'
 PDF_FONT_SIZE = 10
@@ -176,7 +174,7 @@ def CreatePixelSheets(Codes, ColNum, RowNum, SpacingSize = SPACING_SIZE, DotSpac
 
 def DrawSVG(PixelSheets, ColNum, SpacingSize = SPACING_SIZE, PdfPageWidth = PDF_PAGE_WIDTH, PdfPageHeight = PDF_PAGE_HEIGHT, PdfLeftMargin = PDF_LEFT_MARGIN, PdfRightMargin = PDF_RIGHT_MARGIN):
 	SvgPages = list()
-	DrawingWidth = (ColNum * PixelSheets['CellSize']) - SpacingSize
+	DrawingWidth = (ColNum * PixelSheets['CellSize']) + SpacingSize
 	PixelSize = (PdfPageWidth - PdfLeftMargin - PdfRightMargin) / DrawingWidth
 	for PageNumber, Page in enumerate(PixelSheets['Pages']):
 		# Draw page
@@ -206,7 +204,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LE
 		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 1)) * mm, f'Name: {JobName}')
 		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 2)) * mm, f'{Timestamp}, run ID: {Dataset["RunID"]["hex"]}, {Dataset["Length"]["int"]} blocks, page {PageNumber + 1} of {len(SvgPages)}')
 		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 3)) * mm, f'SHA-256: {Dataset["Hash"]["hex"]}')
-		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 4)) * mm, f'Pawpyrus {__version__}. Available at: {__repository__}')
+		CanvasPDF.drawString(PdfLeftMargin * mm, (PdfTopMargin - (PdfLineSpacing * 4)) * mm, f'pawpyrus {__version__}. Available at: {__repository__}')
 		# Draw pawprints
 		renderPDF.draw(ObjectPage, CanvasPDF, PdfLeftMargin * mm, - ((PdfPageHeight - PdfTopMargin) + (PdfLineSpacing * 5)) * mm)
 		# Newpage
@@ -218,7 +216,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LE
 # -----=====| ENCODE MAIN |=====-----
 
 def EncodeMain(JobName, InputFileName, OutputFileName, ColNum, RowNum):
-	logging.info(f'Pawpyrus {__version__} Encoder')
+	logging.info(f'pawpyrus {__version__} Encoder')
 	logging.info(f'Job Name: {JobName}')
 	logging.info(f'Input File: "{os.path.realpath(InputFileName)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
@@ -257,7 +255,7 @@ def ExtractMetadata(Content, IndexBlockSize = INDEX_BLOCK_SIZE):
 
 # -----=====| DETECT & DECODE |=====-----
 
-def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPerimeterRate = MIN_MARKER_PERIMETER_RATE):
+def ReadPage(FileName, DebugDir, FileIndex, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPerimeterRate = MIN_MARKER_PERIMETER_RATE):
 	# Read and binarize image
 	Picture = cv2.imread(FileName, cv2.IMREAD_GRAYSCALE)
 	Threshold, Picture = cv2.threshold(Picture, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -328,7 +326,7 @@ def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPe
 		Xs, Ys = [x for x, y in Chunk], [y for x, y in Chunk]
 		Fragment = Picture[round(min(Ys)):round(max(Ys)), round(min(Xs)):round(max(Xs))]
 		Chunks.append({
-			'Cell': (int(X), int(Y)),
+			'Cell': (int(X) + 1, int(Y) + 1),
 			'Coords': Chunk,
 			'Image': Fragment
 			})
@@ -341,6 +339,7 @@ def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPe
 			Codes.append(Code[0].data.decode('ascii'))
 		else: Color = (0, 0, 255)
 		if DebugDir is not None:
+			if not Code: cv2.imwrite(os.path.join(DebugDir, f'unrecognized.page-{FileIndex}.x-{Chunk["Cell"][0]}.y-{Chunk["Cell"][1]}.jpg'), Chunk['Image'])
 			for LineStart, LineEnd in ((0, 1), (1, 2), (2, 3), (3, 0)):
 				cv2.line(
 					DebugArray,
@@ -358,7 +357,7 @@ def ReadPage(FileName, DebugDir, ArUcoDictionary = ARUCO_DICTIONARY, MinMarkerPe
 				Color,
 				4
 			)
-	if DebugDir is not None: cv2.imwrite(os.path.join(DebugDir, f'debug.{os.path.basename(FileName)}'), DebugArray)
+	if DebugDir is not None: cv2.imwrite(os.path.join(DebugDir, f'page-{FileIndex}.jpg'), DebugArray)
 	return Codes
 
 def VerifyAndDecode(QRBlocks):
@@ -397,7 +396,7 @@ def VerifyAndDecode(QRBlocks):
 
 def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 	if (not ImageInput) and (TextInput is None): raise ValueError(f'Input is empty: no images, no text!')
-	logging.info(f'Pawpyrus {__version__} Decoder')
+	logging.info(f'pawpyrus {__version__} Decoder')
 	if DebugDir is not None:
 		logging.info(f'DEBUG MODE ON')
 		os.mkdir(DebugDir)
@@ -405,9 +404,9 @@ def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 	if TextInput is not None: logging.info(f'Text Input File: "{os.path.realpath(TextInput)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
 	Blocks = list()
-	for FileName in ImageInput:
+	for FileIndex, FileName in enumerate(ImageInput):
 		logging.info(f'Proccesing "{FileName}"')
-		Blocks += ReadPage(FileName, DebugDir)
+		Blocks += ReadPage(FileName, DebugDir, FileIndex + 1)
 	if TextInput is not None:
 		with open(TextInput, 'rt') as TF: Blocks += [ Line[:-1] for Line in TF.readlines() if Line[:-1] != '\n' ]
 	if DebugDir is not None:
@@ -421,8 +420,8 @@ def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 def CreateParser():
 	Default_parser = argparse.ArgumentParser(
 			formatter_class = argparse.RawDescriptionHelpFormatter,
-			description = f'Pawpyrus {__version__}: Minimalist paper storage based on QR codes',
-			epilog = f'Author: {__author__} <{__email__}>\nAvailable at: {__repository__}'
+			description = f'pawpyrus {__version__}: Minimalist paper data storage based on QR codes',
+			epilog = f'Bug tracker: https://github.com/regnveig/pawpyrus/issues'
 			)
 	Default_parser.add_argument ('-v', '--version', action = 'version', version = __version__)
 	Subparsers = Default_parser.add_subparsers(title = 'Commands', dest = 'command')
