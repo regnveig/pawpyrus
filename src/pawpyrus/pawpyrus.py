@@ -1,4 +1,4 @@
-__version__ = '2022.8.7'
+__version__ = '2022.8.7.1'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
 from more_itertools import sliced
