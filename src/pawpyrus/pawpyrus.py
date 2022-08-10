@@ -429,8 +429,8 @@ def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 	if DebugDir is not None:
 		DetectionStatistics = {
 			'total': len(AnnotatedBlocks),
-			'pyzbar': [block['Detected']['pyzbar'] for block in AnnotatedBlocks].count(True),
-			'opencv': [block['Detected']['opencv'] for block in AnnotatedBlocks].count(True),
+			'pyzbar_only': [(not block['Detected']['opencv']) and block['Detected']['pyzbar'] for block in AnnotatedBlocks].count(True),
+			'opencv_only': [block['Detected']['opencv'] and (not block['Detected']['pyzbar']) for block in AnnotatedBlocks].count(True),
 			'both': [block['Detected']['opencv'] and block['Detected']['pyzbar'] for block in AnnotatedBlocks].count(True),
 			'neither': [(not block['Detected']['opencv']) and (not block['Detected']['pyzbar']) for block in AnnotatedBlocks].count(True)
 			}
