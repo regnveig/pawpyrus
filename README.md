@@ -9,7 +9,8 @@
 ![PyPI - Status](https://img.shields.io/pypi/status/pawpyrus?style=flat-square)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/pawpyrus?style=flat-square)
 ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/regnveig/pawpyrus/sandbox?style=flat-square)
-![GitHub issues](https://img.shields.io/github/issues/regnveig/pawpyrus?style=flat-square)
+![GitHub issues](https://img.shields.io/github/issues-raw/regnveig/pawpyrus?style=flat-square)
+![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/regnveig/pawpyrus?style=flat-square)
 ![GitHub](https://img.shields.io/github/license/regnveig/pawpyrus?style=flat-square)
 ![Keybase PGP](https://img.shields.io/keybase/pgp/regnveig?style=flat-square)
 
