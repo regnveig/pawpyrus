@@ -21,11 +21,11 @@ Further, the paper data storage can be scanned and decoded (recommended resoluti
 It may be useful for:
 
 * Storing encryption keys, password databases, etc.
-* Sending digital info by fax
+* Faxing digital data
 
 ## Installation
 
-The script is pure Python and a part of PyPI, so can be installed via *pip*:
+The script is pure Python and a part of [PyPI](https://pypi.org/project/pawpyrus), so can be installed via *pip*:
 
 ```bash
 python3 -m pip install pawpyrus
@@ -47,9 +47,9 @@ pawpyrus Decode -i "Scan1.jpg" "Scan2.jpg" "Scan3.jpg" -o  "OutputFile"
 
 ## Got a trouble?
 
-**QR code detector may fail on one or several blocks.**
+**QR code detectors may fail on one or several blocks.**
 This situation is totally normal, although uncomfortable.
-A crush test with about 500 blocks shows 1 unread block.
+I fixed it for now, with two detectors instead of one, but the bug may reappear in some circumstances (if blocks number is big enough, or scans quality is low enough).
 That's why I implemented Debug Mode:
 
 ```bash
@@ -61,6 +61,8 @@ With Debug Mode, you can inspect undetected QR codes, read them manually with an
 ```bash
 pawpyrus Decode "Scan1.jpg" "Scan2.jpg" "Scan3.jpg" -t "UnrecognizedCodes.txt" -o "OutputFile"
 ```
+
+If you have any idea how to fix it better, [please help](https://github.com/regnveig/pawpyrus/issues/4).
 
 ## Contact
 
