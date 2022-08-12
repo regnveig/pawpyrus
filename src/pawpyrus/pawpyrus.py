@@ -1,29 +1,30 @@
-__version__ = '2022.8.7.1'
+__version__ = '2022.8.7.3'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
-from more_itertools import sliced
-from pyzbar.pyzbar import decode
-from qrcode import *
-from reportlab.graphics import renderPDF
-from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas
-from svglib.svglib import svg2rlg
+from more_itertools import sliced #
+from pyzbar.pyzbar import decode #
+from qrcode import * #
+from reportlab.graphics import renderPDF #
+from reportlab.lib.units import mm #
+from reportlab.pdfgen import canvas #
+from svglib.svglib import svg2rlg #
 import argparse
 import base64
 import binascii
-import bitarray
-import cv2
+import bitarray #
+import cv2 # opencv-python + opencv-contrib-python
 import datetime
 import hashlib
 import io
 import itertools
+import json
 import logging
 import math
-import numpy
+import numpy #
 import os
 import secrets
 import sys
-import tqdm
+import tqdm #
 import uuid
 
 # -----=====| CONST |=====-----
@@ -197,7 +198,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LE
 	Timestamp = str(datetime.datetime.now().replace(microsecond = 0))
 	for PageNumber, Page in tqdm.tqdm(enumerate(SvgPages), total = len(SvgPages), desc = f'Convert pages to PDF', ascii = TQDM_STATUSBAR_ASCII):
 		# Set font
-		CanvasPDF.setFont(PdfFontFamily, PdfFontSize, )
+		CanvasPDF.setFont(PdfFontFamily, PdfFontSize)
 		# Convert SVG page
 		ObjectPage = svg2rlg(io.StringIO(Page))
 		# Captions
@@ -251,6 +252,24 @@ def ExtractMetadata(Content, IndexBlockSize = INDEX_BLOCK_SIZE):
 		'Length': Base64ToInt(Content[: IndexBlockSize]),
 		'Hash': hex(Base64ToInt(Content[IndexBlockSize :]))[2:]
 		}
+	return Result
+
+def DecodeQR(Barcode):
+	Result = { 'Contents': None, 'Detected': { } }
+	# pyzbar
+	Code = decode(Barcode)
+	if Code:
+		Result['Contents'] = str(Code[0].data.decode('ascii'))
+		Result['Detected']['pyzbar'] = True
+	else: Result['Detected']['pyzbar'] = False
+	# opencv
+	detector = cv2.QRCodeDetector()
+	Code = detector.detectAndDecode(Barcode)[0]
+	if Code:
+		if Result['Contents'] is not None: assert Result['Contents'] == Code, f'Different results with different QR decoders? 1 = {Code}, 2 = {Result["Contents"]})?'
+		else: Result['Contents'] = str(Code)
+		Result['Detected']['opencv'] = True
+	else: Result['Detected']['opencv'] = False
 	return Result
 
 # -----=====| DETECT & DECODE |=====-----
@@ -333,10 +352,10 @@ def ReadPage(FileName, DebugDir, FileIndex, ArUcoDictionary = ARUCO_DICTIONARY, 
 	# Detect and decode
 	Codes = list()
 	for Chunk in tqdm.tqdm(Chunks, total = len(Chunks), desc = f'Detect QR codes', ascii = TQDM_STATUSBAR_ASCII):
-		Code = decode(Chunk['Image'])
-		if Code:
+		Code = DecodeQR(Chunk['Image'])
+		if Code['Contents'] is not None:
 			Color = (0, 255, 0)
-			Codes.append(Code[0].data.decode('ascii'))
+			Codes.append(Code)
 		else: Color = (0, 0, 255)
 		if DebugDir is not None:
 			if not Code: cv2.imwrite(os.path.join(DebugDir, f'unrecognized.page-{FileIndex}.x-{Chunk["Cell"][0]}.y-{Chunk["Cell"][1]}.jpg'), Chunk['Image'])
@@ -403,10 +422,20 @@ def DecodeMain(ImageInput, TextInput, DebugDir, OutputFileName):
 	if ImageInput: logging.info(f'Image Input File(s): "{", ".join([os.path.realpath(item) for item in ImageInput])}"')
 	if TextInput is not None: logging.info(f'Text Input File: "{os.path.realpath(TextInput)}"')
 	logging.info(f'Output File: "{os.path.realpath(OutputFileName)}"')
-	Blocks = list()
+	AnnotatedBlocks = list()
 	for FileIndex, FileName in enumerate(ImageInput):
 		logging.info(f'Proccesing "{FileName}"')
-		Blocks += ReadPage(FileName, DebugDir, FileIndex + 1)
+		AnnotatedBlocks += ReadPage(FileName, DebugDir, FileIndex + 1)
+	if DebugDir is not None:
+		DetectionStatistics = {
+			'total': len(AnnotatedBlocks),
+			'pyzbar_only': [(not block['Detected']['opencv']) and block['Detected']['pyzbar'] for block in AnnotatedBlocks].count(True),
+			'opencv_only': [block['Detected']['opencv'] and (not block['Detected']['pyzbar']) for block in AnnotatedBlocks].count(True),
+			'both': [block['Detected']['opencv'] and block['Detected']['pyzbar'] for block in AnnotatedBlocks].count(True),
+			'neither': [(not block['Detected']['opencv']) and (not block['Detected']['pyzbar']) for block in AnnotatedBlocks].count(True)
+			}
+		json.dump(DetectionStatistics, open(os.path.join(DebugDir, 'detection_stats.json'), 'wt'), indent = 4)
+	Blocks = [block['Contents'] for block in AnnotatedBlocks]
 	if TextInput is not None:
 		with open(TextInput, 'rt') as TF: Blocks += [ Line[:-1] for Line in TF.readlines() if Line[:-1] != '\n' ]
 	if DebugDir is not None:

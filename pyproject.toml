@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pawpyrus"
-version = "2022.8.7.2"
+version = "2022.8.7.3"
 authors = [ { name = "Emil Viesná", email="regnveig@yandex.ru" } ]
 description = "A minimalist paper data storage based on QR codes"
 keywords = ["data storage", "paper", "QR", "ArUco"]
