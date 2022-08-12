@@ -1,18 +1,18 @@
-__version__ = '2022.8.7.2'
+__version__ = '2022.8.7.3'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
-from more_itertools import sliced
-from pyzbar.pyzbar import decode
-from qrcode import *
-from reportlab.graphics import renderPDF
-from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas
-from svglib.svglib import svg2rlg
+from more_itertools import sliced #
+from pyzbar.pyzbar import decode #
+from qrcode import * #
+from reportlab.graphics import renderPDF #
+from reportlab.lib.units import mm #
+from reportlab.pdfgen import canvas #
+from svglib.svglib import svg2rlg #
 import argparse
 import base64
 import binascii
-import bitarray
-import cv2
+import bitarray #
+import cv2 # opencv-python + opencv-contrib-python
 import datetime
 import hashlib
 import io
@@ -20,11 +20,11 @@ import itertools
 import json
 import logging
 import math
-import numpy
+import numpy #
 import os
 import secrets
 import sys
-import tqdm
+import tqdm #
 import uuid
 
 # -----=====| CONST |=====-----
