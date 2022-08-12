@@ -1,4 +1,4 @@
-__version__ = '2022.8.7.1'
+__version__ = '2022.8.7.2'
 __repository__ = 'https://github.com/regnveig/pawpyrus'
 
 from more_itertools import sliced
@@ -198,7 +198,7 @@ def CreatePDF(Dataset, SvgPages, OutputFileName, JobName, PdfLeftMargin = PDF_LE
 	Timestamp = str(datetime.datetime.now().replace(microsecond = 0))
 	for PageNumber, Page in tqdm.tqdm(enumerate(SvgPages), total = len(SvgPages), desc = f'Convert pages to PDF', ascii = TQDM_STATUSBAR_ASCII):
 		# Set font
-		CanvasPDF.setFont(PdfFontFamily, PdfFontSize, )
+		CanvasPDF.setFont(PdfFontFamily, PdfFontSize)
 		# Convert SVG page
 		ObjectPage = svg2rlg(io.StringIO(Page))
 		# Captions
