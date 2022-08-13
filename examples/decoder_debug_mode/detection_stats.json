@@ -1,0 +1,7 @@
+{
+    "total": 569,
+    "pyzbar_only": 138,
+    "opencv_only": 1,
+    "both": 430,
+    "neither": 0
+}
