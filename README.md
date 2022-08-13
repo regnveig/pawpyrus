@@ -1,6 +1,6 @@
 &nbsp;
 
-![Logo](https://github.com/regnveig/pawpyrus/blob/main/logo.svg)
+![Logo](https://github.com/regnveig/pawpyrus/blob/stable/logo.svg)
 
 ## Description
 
@@ -45,7 +45,7 @@ File decoder:
 pawpyrus Decode -i "Scan1.jpg" "Scan2.jpg" "Scan3.jpg" -o  "OutputFile"
 ```
 
-Output PDF example you can see [here](https://github.com/regnveig/pawpyrus/blob/main/examples/The_Old_Man_and_the_Sea_encoded.pdf).
+Output PDF example you can see [here](https://github.com/regnveig/pawpyrus/blob/stable/examples/The_Old_Man_and_the_Sea_encoded.pdf).
 
 ## Data Format
 
@@ -85,7 +85,7 @@ With Debug Mode, you can inspect undetected QR codes, read them manually with an
 pawpyrus Decode "Scan1.jpg" "Scan2.jpg" "Scan3.jpg" -t "UnrecognizedCodes.txt" -o "OutputFile"
 ```
 
-Output Debug Dir example you can see [here](https://github.com/regnveig/pawpyrus/tree/main/examples/decoder_debug_mode).
+Output Debug Dir example you can see [here](https://github.com/regnveig/pawpyrus/tree/stable/examples/decoder_debug_mode).
 
 If you have any idea how to fix it better, [please help](https://github.com/regnveig/pawpyrus/issues/4).
 
